@@ -18,7 +18,7 @@ public class Main {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final String URL_BASE = "https://gutendex.com/books/";
     private Boolean terminate = false;
-    private AuthorRepository repo;
+    private final AuthorRepository repo;
 
     public Main(AuthorRepository repo) { this.repo=repo; }
 
@@ -53,20 +53,22 @@ public class Main {
         Optional<Author> searchedAuthor = repo.findByNameContainsIgnoreCase( authorData.name() );
         //el autor existe en DB
         if ( searchedAuthor.isPresent() ){
-            Optional<Book> searchedBook = searchedAuthor.get().getBooks().stream()
-                    .filter( b -> b.getTitle().equalsIgnoreCase(bookData.title()) &&
-                            b.getLanguage().equalsIgnoreCase(bookData.languages().get(0)) )
-                    .findFirst();
-            //el libro ya esta en DB
-            if (searchedBook.isPresent()){
-                System.out.println( "\n\n"+searchedBook.get()+"\n" );
-                return;
-            }
-            //el libro no esta en DB
-            Book book = new Book( bookData );
-            searchedAuthor.get().addBook( book );
-            System.out.println( "\n\n"+book+"\n" );
-            repo.save( searchedAuthor.get() );
+            searchedAuthor.get().getBooks().stream()
+                    .filter( book -> book.getTitle().equalsIgnoreCase(bookData.title()) &&
+                            book.getLanguage().equalsIgnoreCase(bookData.languages().get(0)) )
+                    .findFirst()
+                    //el libro ya esta en DB
+                    .ifPresentOrElse( book -> {
+                        book.setDownloadCount( bookData.downloadCount() );
+                        System.out.println( "\n\n"+book+"\n" );
+                        repo.save(searchedAuthor.get());
+                    //el libro no esta en DB
+                    }, () -> {
+                        var book = new Book( bookData );
+                        searchedAuthor.get().addBook( book );
+                        System.out.println( "\n\n"+book+"\n" );
+                        repo.save( searchedAuthor.get() );
+                    } );
             return;
         }
         //el autor no existe en db
@@ -126,11 +128,12 @@ public class Main {
         System.out.println("Ingresa el nombre del autor que deseas consultar:");
         var authorName = stdin.nextLine();
         Optional<Author> searchedAuthor = repo.findByNameContainsIgnoreCase( authorName );
-        if ( searchedAuthor.isPresent() ) {
-            System.out.println("\n\n" + searchedAuthor.get() + "\n");
-            return;
-        }
-        System.out.println("\n\nNo se encontró\n");
+        searchedAuthor.ifPresentOrElse( author -> {
+            System.out.println("\n\n" + author + "\n");
+        } , () -> {
+            System.out.println("\n\nNo se encontró\n");
+        });
+
     }
 
     private void top10Books(){

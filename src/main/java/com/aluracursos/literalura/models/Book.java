@@ -42,4 +42,6 @@ public class Book {
     public void setAuthor(Author author) { this.author = author; }
 
     public String getLanguage() { return language; }
+
+    public void setDownloadCount(Long downloadCount) { this.downloadCount = downloadCount; }
 }
