@@ -14,9 +14,6 @@ public interface AuthorRepository extends JpaRepository<Author,Long> {
     @Query("SELECT b FROM Author a JOIN a.books b WHERE b.title ILIKE %:title%")
     List<Book> booksByTitle( String title );
 
-    @Query("SELECT b FROM Author a JOIN a.books b WHERE b.title ILIKE %:title% AND b.language ILIKE %:language%")
-    List<Book> booksByTitleAndLanguage(String title,String language);
-
     @Query("SELECT b FROM Author a JOIN a.books b")
     List<Book> allBooks();
 
@@ -25,4 +22,8 @@ public interface AuthorRepository extends JpaRepository<Author,Long> {
 
     @Query("SELECT a FROM Author a WHERE a.birthYear <= :year AND :year <= a.deathYear")
     List<Author> aliveAtYear( Long year );
+
+    @Query("SELECT b FROM Author a JOIN a.books b ORDER BY b.downloadCount DESC LIMIT 10")
+    List<Book> top10Books();
+
 }

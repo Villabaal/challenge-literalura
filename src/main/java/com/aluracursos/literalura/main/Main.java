@@ -1,5 +1,6 @@
 package com.aluracursos.literalura.main;
 
+import com.aluracursos.literalura.dataMappings.AuthorsData;
 import com.aluracursos.literalura.dataMappings.BookData;
 import com.aluracursos.literalura.dataMappings.ResultsData;
 import com.aluracursos.literalura.models.Author;
@@ -9,7 +10,6 @@ import com.aluracursos.literalura.service.apiConsumer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Optional;
 import java.util.Scanner;
 
@@ -30,8 +30,8 @@ public class Main {
                     4 - Buscar libro por idioma ( en DB )
                     5 - Lista de Autores ( En DB )
                     6 - Autores vivos en determinado año ( en DB )
-                    7 - Buscar autor por nombre ( en DB )
-                    8 - Buscar autor por año de nacimiento ( en DB )
+                    7 - Número de libros en determinado idioma ( en DB )
+                    8 - Buscar autor por nombre ( en DB )
                     9 - Top 10 libros más descargados ( en DB )
                     0 - Salir
                     """;
@@ -46,27 +46,42 @@ public class Main {
         System.out.println("Ingresa el titulo del libro o autor que deseas buscar:");
         var keyPhrase = stdin.nextLine().toLowerCase().replaceAll(" ","%20");
         String json = apiConsumer.obtainData( URL_BASE+"?search="+keyPhrase );
-        BookData bookData = objectMapper.readValue(json, ResultsData.class).results().get(0);
-        Author author = new Author( bookData.authors().get(0) );
-        Optional<Author> searchedAuthor = repo.findByNameContainsIgnoreCase(author.getName());
-        Book book = new Book( bookData );
-        System.out.println(book);
-        List<Book> searchedBooks = repo.booksByTitleAndLanguage(book.getTitle(),book.getLanguage());
-        if( searchedAuthor.isEmpty() && searchedBooks.isEmpty() ) {
-            author.addBook( book );
-            repo.save( author );
+        var results = objectMapper.readValue(json, ResultsData.class).results();
+        if ( results.isEmpty() ){ System.out.println("\n\nNo se encontró\n"); return; }
+        BookData bookData = results.get(0);
+        AuthorsData authorData = bookData.authors().get(0);
+        Optional<Author> searchedAuthor = repo.findByNameContainsIgnoreCase( authorData.name() );
+        //el autor existe en DB
+        if ( searchedAuthor.isPresent() ){
+            Optional<Book> searchedBook = searchedAuthor.get().getBooks().stream()
+                    .filter( b -> b.getTitle().equalsIgnoreCase(bookData.title()) &&
+                            b.getLanguage().equalsIgnoreCase(bookData.languages().get(0)) )
+                    .findFirst();
+            //el libro ya esta en DB
+            if (searchedBook.isPresent()){
+                System.out.println( "\n\n"+searchedBook.get()+"\n" );
+                return;
+            }
+            //el libro no esta en DB
+            Book book = new Book( bookData );
+            searchedAuthor.get().addBook( book );
+            System.out.println( "\n\n"+book+"\n" );
+            repo.save( searchedAuthor.get() );
             return;
         }
-        if (searchedAuthor.isPresent() && searchedBooks.isEmpty()) {
-            searchedAuthor.get().addBook(book);
-            repo.save(searchedAuthor.get());
-        }
+        //el autor no existe en db
+        Author author = new Author( authorData );
+        Book book = new Book( bookData );
+        author.addBook( book );
+        repo.save( author );
+        System.out.println( "\n\n"+book+"\n" );
     }
 
     private void searchBooksByTitle(){
         System.out.println("Ingresa el titulo del libro que deseas consultar:");
         var bookName = stdin.nextLine().toLowerCase();
         var books = repo.booksByTitle( bookName );
+        if ( books.isEmpty() ){ System.out.println("\n\nNo se encontró\n"); return; }
         books.forEach( System.out::println );
     }
 
@@ -74,10 +89,12 @@ public class Main {
         repo.allBooks().forEach(System.out::println);
     }
 
-    private void searchBooksByLanguage(){
+    private void searchBookByLanguage(){
         System.out.println("Ingresa el idioma del libro que deseas consultar:");
         var bookLanguage = stdin.nextLine().toLowerCase();
-        System.out.println( repo.findByLanguage(bookLanguage).get(0) );
+        var books = repo.findByLanguage(bookLanguage);
+        if ( books.isEmpty() ){ System.out.println("\n\nNo se encontró\n"); return; }
+        System.out.println( books.get(0) );
     }
 
     private void showAuthors() {
@@ -96,18 +113,50 @@ public class Main {
         System.out.println("\n");
     }
 
-    private final Options[] options = new Options[]{
+    private void countBooksByLanguage(){
+        System.out.println("Cuantos libros hay del idioma?:");
+        var bookLanguage = stdin.nextLine().toLowerCase();
+        var bookCount = repo.findByLanguage(bookLanguage).size();
+        var msg = "\n\nCantidad de libros del idioma %s: %d\n\n"
+                .formatted(bookLanguage,bookCount);
+        System.out.println( msg );
+    }
+
+    private void searchAuthorByName() {
+        System.out.println("Ingresa el nombre del autor que deseas consultar:");
+        var authorName = stdin.nextLine();
+        Optional<Author> searchedAuthor = repo.findByNameContainsIgnoreCase( authorName );
+        if ( searchedAuthor.isPresent() ) {
+            System.out.println("\n\n" + searchedAuthor.get() + "\n");
+            return;
+        }
+        System.out.println("\n\nNo se encontró\n");
+    }
+
+    private void top10Books(){
+        var books = repo.top10Books();
+        System.out.println("\n");
+        books.forEach( System.out::println );
+        System.out.println("\n");
+    }
+
+        private final Options[] options = new Options[]{
             this::exitMenu, this::searchBooks, this::searchBooksByTitle,
-            this::showBooks, this::searchBooksByLanguage, this::showAuthors,
-            this::authorsAlive,
+            this::showBooks, this::searchBookByLanguage, this::showAuthors,
+            this::authorsAlive, this::countBooksByLanguage,this::searchAuthorByName,
+            this::top10Books
     };
 
     public void menu() throws IOException, InterruptedException {
         var option = -1;
         while ( !terminate ){
             showMenu();
-            option = Integer.parseInt( stdin.nextLine() );
-            options[option].call();
+            try{
+                option = Integer.parseInt( stdin.nextLine() );
+                options[option].call();
+            }catch (NumberFormatException | IndexOutOfBoundsException e){
+                System.out.println("\n\nIntroduce un valor válido\n");
+            }
         }
         System.out.println("Byee!!");
     }

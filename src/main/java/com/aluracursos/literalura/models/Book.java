@@ -4,7 +4,6 @@ import com.aluracursos.literalura.dataMappings.BookData;
 import jakarta.persistence.*;
 
 import java.util.List;
-import java.util.Optional;
 
 
 @Entity
@@ -40,13 +39,7 @@ public class Book {
 
     public String getTitle() { return title; }
 
-    public Optional<Author> getAuthor() { return Optional.of(author); }
-
     public void setAuthor(Author author) { this.author = author; }
-
-    public List<String> getSubjects() { return subjects; }
-
-    public Long getDownloadCount() { return downloadCount; }
 
     public String getLanguage() { return language; }
 }

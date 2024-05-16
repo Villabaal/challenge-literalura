@@ -5,7 +5,6 @@ import jakarta.persistence.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 
 @Entity
@@ -33,14 +32,6 @@ public class Author {
 
     @Override
     public String toString() { return name; }
-
-    public Long getBirthYear() {
-        return birthYear;
-    }
-
-    public Optional<Long> getDeathYear() { return Optional.of( deathYear ); }
-
-    public String getName() { return name; }
 
     public List<Book> getBooks() { return books; }
 
